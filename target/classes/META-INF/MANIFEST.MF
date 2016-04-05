@@ -1,5 +1,5 @@
 Manifest-Version: 1.0
-Bnd-LastModified: 1459759301183
+Bnd-LastModified: 1459832059824
 Build-Jdk: 1.8.0_60
 Built-By: gurum
 Bundle-Description: ONOS DHCP Server Manager App
@@ -10,28 +10,27 @@ Bundle-Version: 1.4.0.SNAPSHOT
 Created-By: Apache Maven Bundle Plugin
 Export-Package: org.iris4sdn.csdncm.dhcpserver;uses:="org.iris4sdn.csdnc
  m.vnetmanager,org.jboss.netty.util,org.onlab.packet,org.onosproject.cor
- e,org.onosproject.net,org.onosproject.net.config,org.onosproject.net.co
- nfig.basics,org.onosproject.net.flowobjective,org.onosproject.net.host,
- org.onosproject.net.packet,org.onosproject.store.service,org.onosprojec
- t.vtnrsc,org.onosproject.vtnrsc.subnet,org.onosproject.vtnrsc.tenantnet
- work,org.onosproject.vtnrsc.virtualport";version="1.4.0"
+ e,org.onosproject.net,org.onosproject.net.config,org.onosproject.net.fl
+ owobjective,org.onosproject.net.host,org.onosproject.net.packet,org.ono
+ sproject.store.service,org.onosproject.vtnrsc,org.onosproject.vtnrsc.su
+ bnet,org.onosproject.vtnrsc.tenantnetwork,org.onosproject.vtnrsc.virtua
+ lport";version="1.4.0"
 Import-Package: com.google.common.base;version="[18.0,19)",com.google.co
  mmon.collect;version="[18.0,19)",org.iris4sdn.csdncm.vnetmanager;versio
  n="[1.4,2)",org.jboss.netty.util;version="[3.9,4)",org.onlab.osgi;versi
  on="[1.5,2)",org.onlab.packet;version="[1.5,2)",org.onlab.util;version=
  "[1.5,2)",org.onosproject.core;version="[1.5,2)",org.onosproject.event;
  version="[1.5,2)",org.onosproject.net;version="[1.5,2)",org.onosproject
- .net.config;version="[1.5,2)",org.onosproject.net.config.basics;version
- ="[1.5,2)",org.onosproject.net.driver;version="[1.5,2)",org.onosproject
- .net.flow;version="[1.5,2)",org.onosproject.net.flowobjective;version="
- [1.5,2)",org.onosproject.net.host;version="[1.5,2)",org.onosproject.net
- .packet;version="[1.5,2)",org.onosproject.net.provider;version="[1.5,2)
- ",org.onosproject.store;version="[1.5,2)",org.onosproject.store.seriali
- zers;version="[1.5,2)",org.onosproject.store.service;version="[1.5,2)",
- org.onosproject.vtnrsc;version="[1.5,2)",org.onosproject.vtnrsc.subnet;
- version="[1.5,2)",org.onosproject.vtnrsc.tenantnetwork;version="[1.5,2)
- ",org.onosproject.vtnrsc.virtualport;version="[1.5,2)",org.slf4j;versio
- n="[1.7,2)"
+ .net.config;version="[1.5,2)",org.onosproject.net.driver;version="[1.5,
+ 2)",org.onosproject.net.flow;version="[1.5,2)",org.onosproject.net.flow
+ objective;version="[1.5,2)",org.onosproject.net.host;version="[1.5,2)",
+ org.onosproject.net.packet;version="[1.5,2)",org.onosproject.net.provid
+ er;version="[1.5,2)",org.onosproject.store;version="[1.5,2)",org.onospr
+ oject.store.serializers;version="[1.5,2)",org.onosproject.store.service
+ ;version="[1.5,2)",org.onosproject.vtnrsc;version="[1.5,2)",org.onospro
+ ject.vtnrsc.subnet;version="[1.5,2)",org.onosproject.vtnrsc.tenantnetwo
+ rk;version="[1.5,2)",org.onosproject.vtnrsc.virtualport;version="[1.5,2
+ )",org.slf4j;version="[1.7,2)"
 Provide-Capability: osgi.service;effective:=active;objectClass="org.iris
  4sdn.csdncm.dhcpserver.DhcpServerService",osgi.service;effective:=activ
  e;objectClass="org.iris4sdn.csdncm.dhcpserver.DhcpServerStore"
