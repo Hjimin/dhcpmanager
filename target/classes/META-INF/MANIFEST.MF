@@ -1,5 +1,5 @@
 Manifest-Version: 1.0
-Bnd-LastModified: 1459832059824
+Bnd-LastModified: 1459834549829
 Build-Jdk: 1.8.0_60
 Built-By: gurum
 Bundle-Description: ONOS DHCP Server Manager App
@@ -12,9 +12,8 @@ Export-Package: org.iris4sdn.csdncm.dhcpserver;uses:="org.iris4sdn.csdnc
  m.vnetmanager,org.jboss.netty.util,org.onlab.packet,org.onosproject.cor
  e,org.onosproject.net,org.onosproject.net.config,org.onosproject.net.fl
  owobjective,org.onosproject.net.host,org.onosproject.net.packet,org.ono
- sproject.store.service,org.onosproject.vtnrsc,org.onosproject.vtnrsc.su
- bnet,org.onosproject.vtnrsc.tenantnetwork,org.onosproject.vtnrsc.virtua
- lport";version="1.4.0"
+ sproject.store.service,org.onosproject.vtnrsc.subnet,org.onosproject.vt
+ nrsc.virtualport";version="1.4.0"
 Import-Package: com.google.common.base;version="[18.0,19)",com.google.co
  mmon.collect;version="[18.0,19)",org.iris4sdn.csdncm.vnetmanager;versio
  n="[1.4,2)",org.jboss.netty.util;version="[3.9,4)",org.onlab.osgi;versi
@@ -28,30 +27,24 @@ Import-Package: com.google.common.base;version="[18.0,19)",com.google.co
  er;version="[1.5,2)",org.onosproject.store;version="[1.5,2)",org.onospr
  oject.store.serializers;version="[1.5,2)",org.onosproject.store.service
  ;version="[1.5,2)",org.onosproject.vtnrsc;version="[1.5,2)",org.onospro
- ject.vtnrsc.subnet;version="[1.5,2)",org.onosproject.vtnrsc.tenantnetwo
- rk;version="[1.5,2)",org.onosproject.vtnrsc.virtualport;version="[1.5,2
- )",org.slf4j;version="[1.7,2)"
+ ject.vtnrsc.subnet;version="[1.5,2)",org.onosproject.vtnrsc.virtualport
+ ;version="[1.5,2)",org.slf4j;version="[1.7,2)"
 Provide-Capability: osgi.service;effective:=active;objectClass="org.iris
- 4sdn.csdncm.dhcpserver.DhcpServerService",osgi.service;effective:=activ
- e;objectClass="org.iris4sdn.csdncm.dhcpserver.DhcpServerStore"
+ 4sdn.csdncm.dhcpserver.DhcpServerService"
 Require-Capability: osgi.service;effective:=active;filter:="(objectClass
  =org.onosproject.net.packet.PacketService)",osgi.service;effective:=act
- ive;filter:="(objectClass=org.onosproject.vtnrsc.subnet.SubnetService)"
- ,osgi.service;effective:=active;filter:="(objectClass=org.onosproject.v
- tnrsc.virtualport.VirtualPortService)",osgi.service;effective:=active;f
- ilter:="(objectClass=org.onosproject.net.config.NetworkConfigRegistry)"
- ,osgi.service;effective:=active;filter:="(objectClass=org.onosproject.s
- tore.service.StorageService)",osgi.service;effective:=active;filter:="(
- objectClass=org.onosproject.core.CoreService)",osgi.service;effective:=
- active;filter:="(objectClass=org.iris4sdn.csdncm.vnetmanager.VnetManage
- rService)",osgi.service;effective:=active;filter:="(objectClass=org.iri
- s4sdn.csdncm.dhcpserver.DhcpServerStore)",osgi.service;effective:=activ
- e;filter:="(objectClass=org.onosproject.net.host.HostService)",osgi.ser
- vice;effective:=active;filter:="(objectClass=org.onosproject.store.serv
- ice.LogicalClockService)",osgi.service;effective:=active;filter:="(obje
- ctClass=org.onosproject.vtnrsc.tenantnetwork.TenantNetworkService)",osg
- i.ee;filter:="(&(osgi.ee=JavaSE)(version=1.8))"
-Service-Component: OSGI-INF/org.iris4sdn.csdncm.dhcpserver.DefaultDhcpSe
- rverStore.xml,OSGI-INF/org.iris4sdn.csdncm.dhcpserver.DhcpServerServerM
- anager.xml
+ ive;filter:="(objectClass=org.iris4sdn.csdncm.vnetmanager.VnetManagerSe
+ rvice)",osgi.service;effective:=active;filter:="(objectClass=org.onospr
+ oject.net.host.HostService)",osgi.service;effective:=active;filter:="(o
+ bjectClass=org.onosproject.store.service.LogicalClockService)",osgi.ser
+ vice;effective:=active;filter:="(objectClass=org.onosproject.vtnrsc.sub
+ net.SubnetService)",osgi.service;effective:=active;filter:="(objectClas
+ s=org.onosproject.vtnrsc.virtualport.VirtualPortService)",osgi.service;
+ effective:=active;filter:="(objectClass=org.onosproject.net.config.Netw
+ orkConfigRegistry)",osgi.service;effective:=active;filter:="(objectClas
+ s=org.onosproject.core.CoreService)",osgi.service;effective:=active;fil
+ ter:="(objectClass=org.onosproject.store.service.StorageService)",osgi.
+ ee;filter:="(&(osgi.ee=JavaSE)(version=1.8))"
+Service-Component: OSGI-INF/org.iris4sdn.csdncm.dhcpserver.DhcpServerSer
+ verManager.xml
 Tool: Bnd-2.3.0.201405100607

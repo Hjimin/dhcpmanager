@@ -32,9 +32,6 @@ import org.onosproject.store.service.LogicalClockService;
 import org.onosproject.store.service.StorageService;
 import org.onosproject.vtnrsc.*;
 import org.onosproject.vtnrsc.subnet.SubnetService;
-import org.onosproject.vtnrsc.tenantnetwork.TenantNetworkEvent;
-import org.onosproject.vtnrsc.tenantnetwork.TenantNetworkListener;
-import org.onosproject.vtnrsc.tenantnetwork.TenantNetworkService;
 import org.onosproject.vtnrsc.virtualport.VirtualPortService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,9 +70,6 @@ public class DhcpServerServerManager implements DhcpServerService {
     protected HostService hostService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected DhcpServerStore dhcpServerStore;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected SubnetService subnetService;
 
     private DhcpPacketProcessor processor = new DhcpPacketProcessor();
@@ -86,9 +80,6 @@ public class DhcpServerServerManager implements DhcpServerService {
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected LogicalClockService clockService;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected TenantNetworkService tenantNetworkService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected StorageService storageService;
@@ -119,7 +110,6 @@ public class DhcpServerServerManager implements DhcpServerService {
     private ApplicationId appId;
     private static final String IFACEID = "ifaceid";
 
-    private TenantNetworkListener tenantNetworkListener = new InnerTenantNetworkListener();
 
     @Activate
     protected void activate() {
@@ -137,12 +127,9 @@ public class DhcpServerServerManager implements DhcpServerService {
                 .withTimestampProvider((k, v) -> clockService.getTimestamp())
                 .build();
 
-        //what is director
         installer = DhcpRuleInstaller.ruleInstaller(appId);
         packetService.addProcessor(processor, PacketProcessor.director(0));
-        //timeout = Timer.getTimer().newTimeout(new PurgeListTask(), timerDelay, TimeUnit.MINUTES);
         hostService.addListener(hostListener);
-        tenantNetworkService.addListener(tenantNetworkListener);
         log.info("Started!!");
     }
 
@@ -150,7 +137,6 @@ public class DhcpServerServerManager implements DhcpServerService {
     protected void deactivate() {
         packetService.removeProcessor(processor);
         hostService.removeListener(hostListener);
-        tenantNetworkService.removeListener(tenantNetworkListener);
         eventExecutor.shutdown();
         log.info("Stopped");
     }
@@ -163,10 +149,6 @@ public class DhcpServerServerManager implements DhcpServerService {
             Ip4Address dhcpServerReply;
             Ip4Address routerAddressReply;
             Ip4Address domainServerReply;
-            IpAssignmentHandler ipAssignment = null;
-
-            //ipAssignment = dhcpServerStore.getIpAssignmentFromAllocationMap(HostId.hostId(packet.getSourceMAC()));
-
 
             subnetMaskReply = subnetMask;
             dhcpServerReply = myIP;
@@ -239,13 +221,12 @@ public class DhcpServerServerManager implements DhcpServerService {
             optionList.add(option);
 
             if (outgoingMessageType != DHCPPacketType.DHCPNAK.getValue()) {
-
                 // IP Address Lease Time.
                 option = new DHCPOption();
                 option.setCode(DHCP.DHCPOptionCode.OptionCode_LeaseTime.getValue());
                 option.setLength((byte) 4);
                 option.setData(ByteBuffer.allocate(4)
-                        .putInt(ipAssignment == null ? leaseTime : ipAssignment.leasePeriod()).array());
+                        .putInt(leaseTime).array());
                 optionList.add(option);
 
                 // IP Address Renewal Time.
@@ -362,10 +343,9 @@ public class DhcpServerServerManager implements DhcpServerService {
                 requestedIP = Ip4Address.valueOf(fixedIp.ip().toString());
 
                 if (incomingPacketType.getValue() == DHCPPacketType.DHCPDISCOVER.getValue()) {
-
                     outgoingPacketType = DHCPPacketType.DHCPOFFER;
                     Ip4Address ipOffered = null;
-                    ipOffered = dhcpServerStore.suggestIP(hostId, requestedIP, subnet);
+                    ipOffered = requestedIP;
 
                     if (ipOffered != null) {
                         Ethernet ethReply = buildReply(packet, ipOffered,
@@ -376,7 +356,6 @@ public class DhcpServerServerManager implements DhcpServerService {
                     log.info("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5ipOffered {}",ipOffered);
                 }
                 else if (incomingPacketType.getValue() == DHCPPacketType.DHCPREQUEST.getValue()) {
-
                     log.info("@@@DHCP REQUEST ************************************");
                     log.info("server IP {}", serverIP);
                     log.info("packet {}", packet);
@@ -390,12 +369,6 @@ public class DhcpServerServerManager implements DhcpServerService {
                                     (byte) outgoingPacketType.getValue(), gatewayIP);
                             sendReply(context, ethReply);
                         }
-                    }
-
-                } else if (incomingPacketType.getValue() == DHCPPacketType.DHCPRELEASE.getValue()) {
-                    Ip4Address ip4Address = dhcpServerStore.releaseIP(hostId);
-                    if (ip4Address != null) {
-                        //hostProviderService.removeIpFromHost(hostId, ip4Address);
                     }
                 }
             }
@@ -414,7 +387,6 @@ public class DhcpServerServerManager implements DhcpServerService {
                     UDP udpPacket = (UDP) ipv4Packet.getPayload();
                     if (udpPacket.getDestinationPort() == UDP.DHCP_SERVER_PORT &&
                             udpPacket.getSourcePort() == UDP.DHCP_CLIENT_PORT) {
-                        // This is meant for the dhcp server so process the packet here.
                         DHCP dhcpPayload = (DHCP) udpPacket.getPayload();
                         processDhcpPacket(context, dhcpPayload);
                     }
@@ -444,43 +416,11 @@ public class DhcpServerServerManager implements DhcpServerService {
             Set<FixedIp> floating_ips = virtualPort.fixedIps();
             for (FixedIp floating_ip : floating_ips) {
                 fixedIp = floating_ip;
-                log.info("fixed!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!111 {}", fixedIp);
             }
         }
-
-
-//        TenantNetwork tenantNetwork = tenantNetworkService.getNetwork(virtualPort.networkId());
-//        Subnet subnet = Sets.newHashSet(subnetService.getSubnets()).stream()
-//                .filter(e -> e.tenantId().toString().equals(tenantNetwork.tenantId().toString()))
-//                .findAny().orElse(null);
-//        if(subnet == null) {
-//            log.error("subnet cannot be null");
-//            return null;
-//        }
-
         hostStore.put(host,fixedIp);
     }
 
-//    private void getPool(Host host){
-//        //log.info("Host {} processed", host);
-//        // For remote Openstack VMs beyond gateway
-//
-//        Subnet subnet = getSubnet(host);
-//        if(subnet == null){
-//            return;
-//        }
-//        SubnetId subnetId = subnet.id();
-//        log.info("subnetId {}", subnetId);
-//        if(!subnetStore.containsKey(subnetId)){
-//            log.info("hahahahahahhahhahahahah");
-//            Iterable<AllocationPool> allocationPools = subnet.allocationPools();
-//            for(AllocationPool allocationPool : allocationPools) {
-//                Ip4Address start = Ip4Address.valueOf(allocationPool.startIp().toString());
-//                Ip4Address end = Ip4Address.valueOf(allocationPool.endIp().toString());
-//                //routerAddress = (Ip4Address)subnet.gatewayIp();
-//                dhcpServerStore.populateIPPoolfromRange(subnetId,start, end);
-//                subnetStore.put(subnetId, allocationPool);
-//            }
 
     private void processHost(Host host, Objective.Operation operation) {
         //log.info("Host {} processed", host);
@@ -498,45 +438,18 @@ public class DhcpServerServerManager implements DhcpServerService {
                 });
     }
 
-    private void processTenantNetwork(TenantNetwork tenantNetwork, Objective.Operation operation){
-        log.info("Process Tenant");
-    }
-
     private class InnerHostListener implements HostListener {
         @Override
         public void event(HostEvent event) {
             Host host = event.subject();
             if (HostEvent.Type.HOST_ADDED == event.type()) {
-                //log.info("Process added host {}", host);
                 eventExecutor.submit(() -> processHost(host, Objective.Operation.ADD));
             } else if (HostEvent.Type.HOST_REMOVED == event.type()) {
-                //log.info("Process removed host {}", host);
                 eventExecutor.submit(() -> processHost(host, Objective.Operation.REMOVE));
             } else if (HostEvent.Type.HOST_UPDATED == event.type()) {
-                //log.info("Process updated host {}", host);
                 eventExecutor.submit(() -> processHost(host, Objective.Operation.REMOVE));
                 eventExecutor.submit(() -> processHost(host, Objective.Operation.ADD));
             }
         }
     }
-
-    private class InnerTenantNetworkListener implements TenantNetworkListener {
-
-        @Override
-        public void event(TenantNetworkEvent event) {
-            TenantNetwork tenantNetwork = event.subject();
-            if (TenantNetworkEvent.Type.TENANT_NETWORK_PUT == event.type()) {
-                log.info("Process added tenantNetwork {}", tenantNetwork);
-                eventExecutor.submit(() -> processTenantNetwork(tenantNetwork, Objective.Operation.ADD));
-            } else if (TenantNetworkEvent.Type.TENANT_NETWORK_DELETE == event.type()) {
-                log.info("Process removed tenantNetwork {}", tenantNetwork);
-                eventExecutor.submit(() -> processTenantNetwork(tenantNetwork, Objective.Operation.REMOVE));
-            } else if (TenantNetworkEvent.Type.TENANT_NETWORK_UPDATE == event.type()) {
-                log.info("Process updated tenantNetwork {}", tenantNetwork);
-                eventExecutor.submit(() -> processTenantNetwork(tenantNetwork, Objective.Operation.REMOVE));
-                eventExecutor.submit(() -> processTenantNetwork(tenantNetwork, Objective.Operation.ADD));
-            }
-        }
-    }
-
 }
