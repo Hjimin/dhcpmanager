@@ -5,7 +5,6 @@ import org.apache.felix.scr.annotations.*;
 import org.iris4sdn.csdncm.vnetmanager.BridgeHandler;
 import org.iris4sdn.csdncm.vnetmanager.OpenstackNode;
 import org.iris4sdn.csdncm.vnetmanager.VnetManagerService;
-import org.jboss.netty.util.Timeout;
 import org.onlab.packet.*;
 import org.onlab.util.KryoNamespace;
 import org.onosproject.core.ApplicationId;
@@ -14,7 +13,6 @@ import org.onosproject.net.ConnectPoint;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.Host;
 import org.onosproject.net.HostId;
-import org.onosproject.net.config.NetworkConfigRegistry;
 import org.onosproject.net.flow.DefaultTrafficTreatment;
 import org.onosproject.net.flow.TrafficTreatment;
 import org.onosproject.net.flowobjective.Objective;
@@ -25,12 +23,12 @@ import org.onosproject.net.packet.DefaultOutboundPacket;
 import org.onosproject.net.packet.PacketContext;
 import org.onosproject.net.packet.PacketProcessor;
 import org.onosproject.net.packet.PacketService;
-import org.onosproject.net.provider.ProviderId;
 import org.onosproject.store.serializers.KryoNamespaces;
 import org.onosproject.store.service.EventuallyConsistentMap;
 import org.onosproject.store.service.LogicalClockService;
 import org.onosproject.store.service.StorageService;
 import org.onosproject.vtnrsc.*;
+import org.onosproject.vtnrsc.service.VtnRscService;
 import org.onosproject.vtnrsc.subnet.SubnetService;
 import org.onosproject.vtnrsc.virtualport.VirtualPortService;
 import org.slf4j.Logger;
@@ -51,14 +49,8 @@ import static org.onlab.util.Tools.groupedThreads;
 public class DhcpServerServerManager implements DhcpServerService {
     private final Logger log = LoggerFactory.getLogger(DhcpServerServerManager.class);
 
-    private static final ProviderId PID = new ProviderId("of", DHCPSERVER_APP_ID, true);
-    private static final String EVENT_NOT_NULL = "VirtualMachine event cannot be null";
-
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected PacketService packetService;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected NetworkConfigRegistry cfgService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CoreService coreService;
@@ -84,28 +76,28 @@ public class DhcpServerServerManager implements DhcpServerService {
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected StorageService storageService;
 
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected VtnRscService vtnRscService;
+
+
     private EventuallyConsistentMap<Host, FixedIp> hostStore;
 
     private final ExecutorService eventExecutor = Executors
             .newFixedThreadPool(1, groupedThreads("onos/dhcpmanager", "event-handler"));
 
-    private static final String ALLOCATIONPOOL_IN_SUBNET = "allocationpool-in-subnet";
     private static final String ALLOCATIONPOOL_IN_HOST = "allocationpool-in-host";
-    private static Ip4Address myIP = Ip4Address.valueOf("10.0.0.51");
+    private static Ip4Address myIP = Ip4Address.valueOf("10.0.1.51");
     private static MacAddress myMAC = valueOf("68:05:ca:3c:28:a9");
     private static int leaseTime = 600;
     private static int renewalTime = 300;
     private static int rebindingTime = 360;
     private static byte packetTTL = (byte) 127;
     private static Ip4Address subnetMask = Ip4Address.valueOf("255.255.255.0");
-    private static Ip4Address broadcastAddress = Ip4Address.valueOf("1.1.1.1");
-    private static Ip4Address routerAddress = Ip4Address.valueOf("10.0.8.1");
-    private static Ip4Address domainServer = Ip4Address.valueOf("10.0.0.51");
+    //private static Ip4Address broadcastAddress = Ip4Address.valueOf("32.169.254.169.254.10.0.0.51");
+    private static Ip4Address srcAddress = Ip4Address.valueOf("169.254.169.254");
+    private static Ip4Address domainServer = Ip4Address.valueOf("10.0.1.51");
     private static final Ip4Address IP_BROADCAST = Ip4Address.valueOf("255.255.255.255");
 
-    protected Timeout timeout;
-    protected static int timerDelay = 2;
-    //private final InternalConfigListener cfgListener = new InternalConfigListener();
     private static DhcpRuleInstaller installer;
     private ApplicationId appId;
     private static final String IFACEID = "ifaceid";
@@ -149,12 +141,16 @@ public class DhcpServerServerManager implements DhcpServerService {
             Ip4Address dhcpServerReply;
             Ip4Address routerAddressReply;
             Ip4Address domainServerReply;
+            Ip4Address broadcastAddressReply;
 
             subnetMaskReply = subnetMask;
             dhcpServerReply = myIP;
             routerAddressReply = gatewayIp;
-
+            String gate = gatewayIp.toString();
+            String broad = gate.substring(0,gate.lastIndexOf(".")) + ".255";
+            broadcastAddressReply = Ip4Address.valueOf(broad);
             domainServerReply = domainServer;
+
             log.info("subnet {}", subnetMaskReply);
             log.info("dhcp server reply {}", dhcpServerReply);
             log.info("router address reply {}", routerAddressReply);
@@ -254,7 +250,27 @@ public class DhcpServerServerManager implements DhcpServerService {
                 option = new DHCPOption();
                 option.setCode(DHCP.DHCPOptionCode.OptionCode_BroadcastAddress.getValue());
                 option.setLength((byte) 4);
-                option.setData(broadcastAddress.toOctets());
+                option.setData(broadcastAddressReply.toOctets());
+                optionList.add(option);
+
+//                option = new DHCPOption();
+//                option.setCode((byte) 15);
+//                option.setLength((byte) 14);
+//                String domain_name = "openstacklocal";
+//                option.setData(domain_name.getBytes());
+//                optionList.add(option);
+//
+//                option = new DHCPOption();
+//                option.setCode((byte) 12);
+//                option.setLength((byte) 13);
+//                option.setData(domain_name.getBytes());
+//                optionList.add(option);
+
+                // DNS Server Address.
+                option = new DHCPOption();
+                option.setCode(DHCP.DHCPOptionCode.OptionCode_DomainServer.getValue());
+                option.setLength((byte) 4);
+                option.setData(domainServerReply.toOctets());
                 optionList.add(option);
 
                 // Router Address.
@@ -264,12 +280,43 @@ public class DhcpServerServerManager implements DhcpServerService {
                 option.setData(routerAddressReply.toOctets());
                 optionList.add(option);
 
-                // DNS Server Address.
                 option = new DHCPOption();
-                option.setCode(DHCP.DHCPOptionCode.OptionCode_DomainServer.getValue());
-                option.setLength((byte) 4);
-                option.setData(domainServerReply.toOctets());
+                option.setCode((byte) 121);
+                option.setLength((byte) 14);
+                //option.setData(0x0e20a9fea9fe0a000202000a0002011a0205aeff);
+                ByteBuffer bb = ByteBuffer.allocate(14);
+                //bb.put((byte)0x000a000001);
+
+                bb.put((byte)0x20);
+
+                bb.put((byte)0xa9);
+                bb.put((byte)0xfe);
+                bb.put((byte)0xa9);
+                bb.put((byte)0xfe);
+
+                //gateway
+                bb.put(gatewayIp.toOctets()[0]);
+                bb.put(gatewayIp.toOctets()[1]);
+                bb.put(gatewayIp.toOctets()[2]);
+                bb.put(gatewayIp.toOctets()[3]);
+//                bb.put((byte)0x0a);
+//                bb.put((byte)0x00);
+//                bb.put((byte)0x00);
+//                bb.put((byte)0x01);
+
+                bb.put((byte)0x00);
+                bb.put(gatewayIp.toOctets()[0]);
+                bb.put(gatewayIp.toOctets()[1]);
+                bb.put(gatewayIp.toOctets()[2]);
+                bb.put(gatewayIp.toOctets()[3]);
+//                bb.put((byte)0xa9fea9fe);
+//                  bb.put((byte)0x0a000033);
+                option.setData(bb.array());
+                //option.setData(broadcastAddress.toOctets());
                 optionList.add(option);
+
+
+
             }
 
             // End Option.
@@ -287,11 +334,11 @@ public class DhcpServerServerManager implements DhcpServerService {
         }
 
         private void sendReply(PacketContext context, Ethernet reply) {
-            log.info("sendReply out");
             if (reply != null) {
-                log.info("sendReply in");
                 TrafficTreatment.Builder builder = DefaultTrafficTreatment.builder();
                 ConnectPoint sourcePoint = context.inPacket().receivedFrom();
+                log.info("set out put {}", sourcePoint.port());
+                log.info("set out put {}", sourcePoint);
                 builder.setOutput(sourcePoint.port());
                 context.block();
                 packetService.emit(new DefaultOutboundPacket(sourcePoint.deviceId(),
@@ -304,7 +351,7 @@ public class DhcpServerServerManager implements DhcpServerService {
             boolean flagIfRequestedIP = false;
             boolean flagIfServerIP = false;
             Ip4Address requestedIP = Ip4Address.valueOf("0.0.0.0");
-            Ip4Address serverIP = Ip4Address.valueOf("0.0.0.0");
+            Ip4Address serverIP = Ip4Address.valueOf("10.0.1.51");
             Subnet subnet;
             Ip4Address gatewayIP = null;
 
@@ -396,18 +443,19 @@ public class DhcpServerServerManager implements DhcpServerService {
     }
 
 
-    private void getIp(Host host){
+    private FixedIp getIp(Host host){
         String ifaceId = host.annotations().value(IFACEID);
         if (ifaceId == null) {
             log.error("The ifaceId of Host is null");
-            return;
+            return null;
         }
 
         VirtualPortId virtualPortId = VirtualPortId.portId(ifaceId);
         VirtualPort virtualPort = virtualPortService.getPort(virtualPortId);
+
         if (virtualPort == null) {
             log.error("Could not find virutal port of the host {}", host.toString());
-            return;
+            return null;
         }
 
         FixedIp fixedIp = null;
@@ -419,22 +467,29 @@ public class DhcpServerServerManager implements DhcpServerService {
             }
         }
         hostStore.put(host,fixedIp);
+        return fixedIp;
     }
 
 
     private void processHost(Host host, Objective.Operation operation) {
-        //log.info("Host {} processed", host);
-        getIp(host);
         IpAddress dstIpAddress = Ip4Address.valueOf("255.255.255.255");
         IpAddress srcIpAddress = Ip4Address.valueOf("0.0.0.0");
         MacAddress dstMacAddress = valueOf("ff:ff:ff:ff:ff:ff");
         MacAddress srcMacAddress = host.mac();
+
+        SubnetId subnet_id = getIp(host).subnetId();
+        Subnet subnet = subnetService.getSubnet(subnet_id);
+
+        SegmentationId l3vni = vtnRscService.getL3vni(subnet.tenantId());
+
         Sets.newHashSet(vnetManagerService.getOpenstackNodes()).stream()
                 .filter(e -> e.getState().contains(OpenstackNode.State.BRIDGE_CREATED))
                 .forEach(e -> {
                     DeviceId deviceId = e.getBridgeId(BridgeHandler.BridgeType.INTEGRATION);
                     installer.programDhcp(deviceId,  dstIpAddress, srcIpAddress, dstMacAddress,
                             srcMacAddress, operation);
+//                    installer.programArpClassifier(deviceId, domainServer, l3vni, operation);
+                    //installer.programGate(deviceId, srcAddress, operation);
                 });
     }
 

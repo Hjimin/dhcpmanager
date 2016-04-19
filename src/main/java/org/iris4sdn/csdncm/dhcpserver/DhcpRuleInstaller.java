@@ -35,7 +35,9 @@ public class DhcpRuleInstaller {
 
 
     //don't know
-    private static final int DHCP_PRIORITY = 60000;
+    private static final int ARP_CLASSIFIER_PRIORITY = 55000;
+    private static final int DEFAULT_PRIORITY = 50000;
+    private static final int DHCP_PRIORITY = 65000;
 
     // Default NAT time out is 3 minutes.
     private static final int DEFAULT_TIMEOUT = 30;
@@ -62,6 +64,31 @@ public class DhcpRuleInstaller {
                 .matchIPSrc(IpPrefix.valueOf(srcIpAddress, PREFIX_LENGTH))
                 .matchIPDst(IpPrefix.valueOf(dstIpAddress, PREFIX_LENGTH))
                 .matchIPProtocol(IPv4.PROTOCOL_UDP)
+                .build();
+
+        TrafficTreatment treatment = DefaultTrafficTreatment.builder().punt()
+                .build();
+
+        ForwardingObjective.Builder objective = DefaultForwardingObjective
+                .builder().withTreatment(treatment).withSelector(selector)
+                .fromApp(appId).withFlag(ForwardingObjective.Flag.SPECIFIC)
+                .withPriority(DHCP_PRIORITY);
+
+        if (type.equals(Objective.Operation.ADD)) {
+            flowObjectiveService.forward(deviceId, objective.add());
+        } else {
+            flowObjectiveService.forward(deviceId, objective.remove());
+        }
+    }
+
+    public void programGate(DeviceId deviceId,
+                                IpAddress srcipAddress, Objective.Operation type) {
+        log.info("Program gate rules");
+
+        TrafficSelector selector = DefaultTrafficSelector.builder()
+                .matchEthType(Ethernet.TYPE_IPV4)
+                .matchIPProtocol(IPv4.PROTOCOL_TCP)
+                .matchIPSrc(IpPrefix.valueOf(srcipAddress, PREFIX_LENGTH))
                 .build();
 
         TrafficTreatment treatment = DefaultTrafficTreatment.builder().punt()
