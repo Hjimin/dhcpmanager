@@ -17,7 +17,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.iris4sdn.csdncm.dhcpserver</groupId>
+    <groupId>org.iris4sdn.csdncm</groupId>
     <artifactId>csdncm-dhcpserver</artifactId>
     <version>1.4.0-SNAPSHOT</version>
     <packaging>bundle</packaging>
@@ -96,8 +96,8 @@
         </dependency>
 
         <dependency>
-            <groupId>org.iris4sdn.csdncm.vnetmanager</groupId>
-            <artifactId>csdncm-vnetmanager</artifactId>
+            <groupId>org.iris4sdn.csdncm</groupId>
+            <artifactId>csdncm-app-vnetmanager-api</artifactId>
             <version>1.4.0-SNAPSHOT</version>
         </dependency>
 

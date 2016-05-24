@@ -19,6 +19,7 @@
     <feature name="${project.artifactId}" version="${project.version}" description="${project.description}">
         <feature>onos-api</feature>
         <bundle>mvn:${project.groupId}/${project.artifactId}/${project.version}</bundle>
-        <bundle>mvn:org.iris4sdn.csdncm.vnetmanager/csdncm-vnetmanager/1.4.0-SNAPSHOT</bundle>
+        <bundle>mvn:${project.groupId}/csdncm-app-vnetmanager-api/${project.version}</bundle>
+        <bundle>mvn:${project.groupId}/csdncm-app-vnetmanager/${project.version}</bundle>
     </feature>
 </features>

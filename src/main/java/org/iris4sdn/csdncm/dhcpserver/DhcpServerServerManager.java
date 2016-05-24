@@ -2,7 +2,7 @@ package org.iris4sdn.csdncm.dhcpserver;
 
 import com.google.common.collect.Sets;
 import org.apache.felix.scr.annotations.*;
-import org.iris4sdn.csdncm.vnetmanager.BridgeHandler;
+import org.iris4sdn.csdncm.vnetmanager.Bridge;
 import org.iris4sdn.csdncm.vnetmanager.OpenstackNode;
 import org.iris4sdn.csdncm.vnetmanager.VnetManagerService;
 import org.onlab.packet.*;
@@ -151,10 +151,10 @@ public class DhcpServerServerManager implements DhcpServerService {
             broadcastAddressReply = Ip4Address.valueOf(broad);
             domainServerReply = domainServer;
 
-            log.info("subnet {}", subnetMaskReply);
-            log.info("dhcp server reply {}", dhcpServerReply);
-            log.info("router address reply {}", routerAddressReply);
-            log.info("domain server reply {}", domainServerReply);
+//            log.info("subnet {}", subnetMaskReply);
+//            log.info("dhcp server reply {}", dhcpServerReply);
+//            log.info("router address reply {}", routerAddressReply);
+//            log.info("domain server reply {}", domainServerReply);
 
             // Ethernet Frame.
             Ethernet ethReply = new Ethernet();
@@ -337,8 +337,6 @@ public class DhcpServerServerManager implements DhcpServerService {
             if (reply != null) {
                 TrafficTreatment.Builder builder = DefaultTrafficTreatment.builder();
                 ConnectPoint sourcePoint = context.inPacket().receivedFrom();
-                log.info("set out put {}", sourcePoint.port());
-                log.info("set out put {}", sourcePoint);
                 builder.setOutput(sourcePoint.port());
                 context.block();
                 packetService.emit(new DefaultOutboundPacket(sourcePoint.deviceId(),
@@ -377,8 +375,6 @@ public class DhcpServerServerManager implements DhcpServerService {
 
                 MacAddress clientMac = new MacAddress(dhcpPayload.getClientHardwareAddress());
                 VlanId vlanId = VlanId.vlanId(packet.getVlanID());
-                log.info("clientMac {}", clientMac);
-                log.info("vlanId {}", vlanId);
                 HostId hostId = HostId.hostId(clientMac, vlanId);
                 Host host = hostService.getHost(hostId);
 
@@ -397,20 +393,14 @@ public class DhcpServerServerManager implements DhcpServerService {
                     if (ipOffered != null) {
                         Ethernet ethReply = buildReply(packet, ipOffered,
                                 (byte) outgoingPacketType.getValue(),gatewayIP);
-                        log.info("ethReply {}", ethReply);
                         sendReply(context, ethReply);
                     }
-                    log.info("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5ipOffered {}",ipOffered);
                 }
                 else if (incomingPacketType.getValue() == DHCPPacketType.DHCPREQUEST.getValue()) {
-                    log.info("@@@DHCP REQUEST ************************************");
-                    log.info("server IP {}", serverIP);
-                    log.info("packet {}", packet);
 
                     if (flagIfServerIP && flagIfRequestedIP) {
                         if (myIP.equals(serverIP)) {
                             outgoingPacketType = DHCPPacketType.DHCPACK;
-                            log.info("hahahah");
 
                             Ethernet ethReply = buildReply(packet, requestedIP,
                                     (byte) outgoingPacketType.getValue(), gatewayIP);
@@ -485,7 +475,7 @@ public class DhcpServerServerManager implements DhcpServerService {
         Sets.newHashSet(vnetManagerService.getOpenstackNodes()).stream()
                 .filter(e -> e.getState().contains(OpenstackNode.State.BRIDGE_CREATED))
                 .forEach(e -> {
-                    DeviceId deviceId = e.getBridgeId(BridgeHandler.BridgeType.INTEGRATION);
+                    DeviceId deviceId = e.getBridgeId(Bridge.BridgeType.INTEGRATION);
                     installer.programDhcp(deviceId,  dstIpAddress, srcIpAddress, dstMacAddress,
                             srcMacAddress, operation);
 //                    installer.programArpClassifier(deviceId, domainServer, l3vni, operation);
