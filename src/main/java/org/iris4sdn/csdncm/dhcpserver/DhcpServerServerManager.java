@@ -3,8 +3,8 @@ package org.iris4sdn.csdncm.dhcpserver;
 import com.google.common.collect.Sets;
 import org.apache.felix.scr.annotations.*;
 import org.iris4sdn.csdncm.vnetmanager.Bridge;
+import org.iris4sdn.csdncm.vnetmanager.NodeManagerService;
 import org.iris4sdn.csdncm.vnetmanager.OpenstackNode;
-import org.iris4sdn.csdncm.vnetmanager.VnetManagerService;
 import org.onlab.packet.*;
 import org.onlab.util.KryoNamespace;
 import org.onosproject.core.ApplicationId;
@@ -56,7 +56,7 @@ public class DhcpServerServerManager implements DhcpServerService {
     protected CoreService coreService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected VnetManagerService vnetManagerService;
+    protected NodeManagerService nodeManagerService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected HostService hostService;
@@ -425,7 +425,14 @@ public class DhcpServerServerManager implements DhcpServerService {
                     if (udpPacket.getDestinationPort() == UDP.DHCP_SERVER_PORT &&
                             udpPacket.getSourcePort() == UDP.DHCP_CLIENT_PORT) {
                         DHCP dhcpPayload = (DHCP) udpPacket.getPayload();
-                        processDhcpPacket(context, dhcpPayload);
+                        MacAddress client_macAddress = MacAddress.valueOf(dhcpPayload.getClientHardwareAddress());
+
+                        Sets.newHashSet(hostService.getHosts()).stream()
+                                .filter(host -> {
+                                    if(host.mac().toString().equals(client_macAddress.toString()))
+                                        return true;
+                                    return false;})
+                                .forEach(host -> {processDhcpPacket(context, dhcpPayload);});
                     }
                 }
             }
@@ -472,14 +479,11 @@ public class DhcpServerServerManager implements DhcpServerService {
 
         SegmentationId l3vni = vtnRscService.getL3vni(subnet.tenantId());
 
-        Sets.newHashSet(vnetManagerService.getOpenstackNodes()).stream()
+        Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
                 .filter(e -> e.getState().contains(OpenstackNode.State.BRIDGE_CREATED))
                 .forEach(e -> {
                     DeviceId deviceId = e.getBridgeId(Bridge.BridgeType.INTEGRATION);
-                    installer.programDhcp(deviceId,  dstIpAddress, srcIpAddress, dstMacAddress,
-                            srcMacAddress, operation);
-//                    installer.programArpClassifier(deviceId, domainServer, l3vni, operation);
-                    //installer.programGate(deviceId, srcAddress, operation);
+                    installer.programDhcp(deviceId,  dstIpAddress, srcIpAddress, dstMacAddress, operation);
                 });
     }
 
