@@ -54,13 +54,11 @@ public class DhcpRuleInstaller {
     }
 
     public void programDhcp(DeviceId deviceId, IpAddress dstIpAddress,
-                            IpAddress srcIpAddress, MacAddress dstMac, MacAddress srcVmMac,
-                            Objective.Operation type){
+                            IpAddress srcIpAddress, MacAddress dstMac, Objective.Operation type){
         log.info("Program DHCP rules");
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchEthType(Ethernet.TYPE_IPV4)
                 .matchEthDst(dstMac)
-                .matchEthSrc(srcVmMac)
                 .matchIPSrc(IpPrefix.valueOf(srcIpAddress, PREFIX_LENGTH))
                 .matchIPDst(IpPrefix.valueOf(dstIpAddress, PREFIX_LENGTH))
                 .matchIPProtocol(IPv4.PROTOCOL_UDP)
