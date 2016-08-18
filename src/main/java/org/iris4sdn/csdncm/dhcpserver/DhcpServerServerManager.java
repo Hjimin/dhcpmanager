@@ -30,6 +30,7 @@ import org.onosproject.store.service.StorageService;
 import org.onosproject.vtnrsc.*;
 import org.onosproject.vtnrsc.service.VtnRscService;
 import org.onosproject.vtnrsc.subnet.SubnetService;
+import org.onosproject.vtnrsc.tenantnetwork.TenantNetworkService;
 import org.onosproject.vtnrsc.virtualport.VirtualPortService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +44,8 @@ import java.util.concurrent.Executors;
 
 import static org.onlab.packet.MacAddress.valueOf;
 import static org.onlab.util.Tools.groupedThreads;
+
+import static com.google.common.base.Preconditions.checkNotNull;
 
 @Component(immediate = true)
 @Service
@@ -79,6 +82,9 @@ public class DhcpServerServerManager implements DhcpServerService {
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected VtnRscService vtnRscService;
 
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected TenantNetworkService tenantNetworkService;
+
 
     private EventuallyConsistentMap<Host, FixedIp> hostStore;
 
@@ -86,17 +92,20 @@ public class DhcpServerServerManager implements DhcpServerService {
             .newFixedThreadPool(1, groupedThreads("onos/dhcpmanager", "event-handler"));
 
     private static final String ALLOCATIONPOOL_IN_HOST = "allocationpool-in-host";
-    private static Ip4Address myIP = Ip4Address.valueOf("10.0.1.51");
-    private static MacAddress myMAC = valueOf("68:05:ca:3c:28:a9");
+    private static Ip4Address CONTROLLER_IP = Ip4Address.valueOf("10.0.1.51");
+    private static MacAddress CONTROLLER_MAC = valueOf("68:05:ca:3c:28:a9");
     private static int leaseTime = 600;
     private static int renewalTime = 300;
     private static int rebindingTime = 360;
     private static byte packetTTL = (byte) 127;
     private static Ip4Address subnetMask = Ip4Address.valueOf("255.255.255.0");
-    //private static Ip4Address broadcastAddress = Ip4Address.valueOf("32.169.254.169.254.10.0.0.51");
     private static Ip4Address srcAddress = Ip4Address.valueOf("169.254.169.254");
     private static Ip4Address domainServer = Ip4Address.valueOf("10.0.1.51");
+
     private static final Ip4Address IP_BROADCAST = Ip4Address.valueOf("255.255.255.255");
+    private static final Ip4Address DEFAULT_IP = Ip4Address.valueOf("0.0.0.0");
+    private static final MacAddress MAC_BROADCAST = MacAddress.valueOf("ff:ff:ff:ff:ff:ff");
+
 
     private static DhcpRuleInstaller installer;
     private ApplicationId appId;
@@ -122,7 +131,7 @@ public class DhcpServerServerManager implements DhcpServerService {
         installer = DhcpRuleInstaller.ruleInstaller(appId);
         packetService.addProcessor(processor, PacketProcessor.director(0));
         hostService.addListener(hostListener);
-        log.info("Started!!");
+        log.info("Started");
     }
 
     @Deactivate
@@ -144,7 +153,7 @@ public class DhcpServerServerManager implements DhcpServerService {
             Ip4Address broadcastAddressReply;
 
             subnetMaskReply = subnetMask;
-            dhcpServerReply = myIP;
+            dhcpServerReply = CONTROLLER_IP;
             routerAddressReply = gatewayIp;
             String gate = gatewayIp.toString();
             String broad = gate.substring(0,gate.lastIndexOf(".")) + ".255";
@@ -158,7 +167,7 @@ public class DhcpServerServerManager implements DhcpServerService {
 
             // Ethernet Frame.
             Ethernet ethReply = new Ethernet();
-            ethReply.setSourceMACAddress(myMAC);
+            ethReply.setSourceMACAddress(CONTROLLER_MAC);
             MacAddress mac = valueOf("ff:ff:ff:ff:ff:ff");
             ethReply.setDestinationMACAddress(mac);
             //ethReply.setDestinationMACAddress(packet.getSourceMAC());
@@ -334,14 +343,12 @@ public class DhcpServerServerManager implements DhcpServerService {
         }
 
         private void sendReply(PacketContext context, Ethernet reply) {
-            if (reply != null) {
-                TrafficTreatment.Builder builder = DefaultTrafficTreatment.builder();
-                ConnectPoint sourcePoint = context.inPacket().receivedFrom();
-                builder.setOutput(sourcePoint.port());
-                context.block();
-                packetService.emit(new DefaultOutboundPacket(sourcePoint.deviceId(),
-                        builder.build(), ByteBuffer.wrap(reply.serialize())));
-            }
+            TrafficTreatment.Builder builder = DefaultTrafficTreatment.builder();
+            ConnectPoint sourcePoint = context.inPacket().receivedFrom();
+            builder.setOutput(sourcePoint.port());
+            context.block();
+            packetService.emit(new DefaultOutboundPacket(sourcePoint.deviceId(),
+                    builder.build(), ByteBuffer.wrap(reply.serialize())));
         }
 
         private void processDhcpPacket(PacketContext context, DHCP dhcpPayload) {
@@ -350,62 +357,70 @@ public class DhcpServerServerManager implements DhcpServerService {
             boolean flagIfServerIP = false;
             Ip4Address requestedIP = Ip4Address.valueOf("0.0.0.0");
             Ip4Address serverIP = Ip4Address.valueOf("10.0.1.51");
-            Subnet subnet;
             Ip4Address gatewayIP = null;
 
-            if (dhcpPayload != null) {
-                DHCPPacketType incomingPacketType = DHCPPacketType.getType(0);
-                for (DHCPOption option : dhcpPayload.getOptions()) {
-                    if (option.getCode() == DHCP.DHCPOptionCode.OptionCode_MessageType.getValue()) {
-                        byte[] data = option.getData();
-                        incomingPacketType = DHCPPacketType.getType(data[0]);
-                    }
-                    if (option.getCode() == DHCP.DHCPOptionCode.OptionCode_RequestedIP.getValue()) {
-                        byte[] data = option.getData();
-                        requestedIP = Ip4Address.valueOf(data);
-                        flagIfRequestedIP = true;
-                    }
-                    if (option.getCode() == DHCP.DHCPOptionCode.OptionCode_DHCPServerIp.getValue()) {
-                        byte[] data = option.getData();
-                        serverIP = Ip4Address.valueOf(data);
-                        flagIfServerIP = true;
-                    }
+            DHCPPacketType incomingPacketType = DHCPPacketType.getType(0);
+            for (DHCPOption option : dhcpPayload.getOptions()) {
+                if (option.getCode() == DHCP.DHCPOptionCode.OptionCode_MessageType.getValue()) {
+                    byte[] data = option.getData();
+                    incomingPacketType = DHCPPacketType.getType(data[0]);
                 }
-                DHCPPacketType outgoingPacketType;
+                if (option.getCode() == DHCP.DHCPOptionCode.OptionCode_RequestedIP.getValue()) {
+                    byte[] data = option.getData();
+                    requestedIP = Ip4Address.valueOf(data);
+                    flagIfRequestedIP = true;
+                }
+                if (option.getCode() == DHCP.DHCPOptionCode.OptionCode_DHCPServerIp.getValue()) {
+                    byte[] data = option.getData();
+                    serverIP = Ip4Address.valueOf(data);
+                    flagIfServerIP = true;
+                }
+            }
 
-                MacAddress clientMac = new MacAddress(dhcpPayload.getClientHardwareAddress());
-                VlanId vlanId = VlanId.vlanId(packet.getVlanID());
-                HostId hostId = HostId.hostId(clientMac, vlanId);
-                Host host = hostService.getHost(hostId);
 
-                FixedIp fixedIp= hostStore.get(host);
-                SubnetId subnetid = fixedIp.subnetId();
-                subnet = subnetService.getSubnet(subnetid);
+            MacAddress clientMac = new MacAddress(dhcpPayload.getClientHardwareAddress());
+            VlanId vlanId = VlanId.vlanId(packet.getVlanID());
+            HostId hostId = HostId.hostId(clientMac, vlanId);
+            Host host = hostService.getHost(hostId);
+            if(host == null) {
+                log.info("{} is not part of management");
+                return;
+            }
 
-                gatewayIP = Ip4Address.valueOf(subnet.gatewayIp().toString());
-                requestedIP = Ip4Address.valueOf(fixedIp.ip().toString());
+            FixedIp fixedIp = hostStore.get(host);
+            if(fixedIp == null) {
+                log.warn("fixedIp should not be null");
+                return;
+            }
 
-                if (incomingPacketType.getValue() == DHCPPacketType.DHCPDISCOVER.getValue()) {
-                    outgoingPacketType = DHCPPacketType.DHCPOFFER;
-                    Ip4Address ipOffered = null;
-                    ipOffered = requestedIP;
+            SubnetId subnetid = fixedIp.subnetId();
+            if(subnetid == null) {
+                log.warn("sunetid should not be null");
+                return;
+            }
+            Subnet subnet = subnetService.getSubnet(subnetid);
 
-                    if (ipOffered != null) {
-                        Ethernet ethReply = buildReply(packet, ipOffered,
-                                (byte) outgoingPacketType.getValue(),gatewayIP);
+            gatewayIP = Ip4Address.valueOf(subnet.gatewayIp().toString());
+            requestedIP = Ip4Address.valueOf(fixedIp.ip().toString());
+
+            if (incomingPacketType.getValue() == DHCPPacketType.DHCPDISCOVER.getValue()) {
+                DHCPPacketType outgoingPacketType = DHCPPacketType.DHCPOFFER;
+                Byte messageType = (byte)outgoingPacketType.getValue();
+                Ip4Address ipOffered = requestedIP;
+
+                if (ipOffered != null) {
+                    Ethernet ethReply = buildReply(packet, ipOffered, messageType,gatewayIP);
+                    checkNotNull(ethReply, "ethReply should not be null");
+                    sendReply(context, ethReply);
+                }
+            } else if (incomingPacketType.getValue() == DHCPPacketType.DHCPREQUEST.getValue()) {
+                if (flagIfServerIP && flagIfRequestedIP) {
+                    if (CONTROLLER_IP.equals(serverIP)) {
+                        DHCPPacketType outgoingPacketType = DHCPPacketType.DHCPACK;
+                        Byte messageType = (byte)outgoingPacketType.getValue();
+                        Ethernet ethReply = buildReply(packet, requestedIP, messageType, gatewayIP);
+                        checkNotNull(ethReply, "ethReply should not be null");
                         sendReply(context, ethReply);
-                    }
-                }
-                else if (incomingPacketType.getValue() == DHCPPacketType.DHCPREQUEST.getValue()) {
-
-                    if (flagIfServerIP && flagIfRequestedIP) {
-                        if (myIP.equals(serverIP)) {
-                            outgoingPacketType = DHCPPacketType.DHCPACK;
-
-                            Ethernet ethReply = buildReply(packet, requestedIP,
-                                    (byte) outgoingPacketType.getValue(), gatewayIP);
-                            sendReply(context, ethReply);
-                        }
                     }
                 }
             }
@@ -425,14 +440,15 @@ public class DhcpServerServerManager implements DhcpServerService {
                     if (udpPacket.getDestinationPort() == UDP.DHCP_SERVER_PORT &&
                             udpPacket.getSourcePort() == UDP.DHCP_CLIENT_PORT) {
                         DHCP dhcpPayload = (DHCP) udpPacket.getPayload();
-                        MacAddress client_macAddress = MacAddress.valueOf(dhcpPayload.getClientHardwareAddress());
 
+                        if(dhcpPayload == null) {
+                            return;
+                        }
+
+                        MacAddress client_macAddress = MacAddress.valueOf(dhcpPayload.getClientHardwareAddress());
                         Sets.newHashSet(hostService.getHosts()).stream()
-                                .filter(host -> {
-                                    if(host.mac().toString().equals(client_macAddress.toString()))
-                                        return true;
-                                    return false;})
-                                .forEach(host -> {processDhcpPacket(context, dhcpPayload);});
+                                .filter(host -> (host.mac().toString().equals(client_macAddress.toString())))
+                                .forEach(host -> processDhcpPacket(context, dhcpPayload));
                     }
                 }
             }
@@ -440,19 +456,18 @@ public class DhcpServerServerManager implements DhcpServerService {
     }
 
 
-    private FixedIp getIp(Host host){
+    private void configIp(Host host){
         String ifaceId = host.annotations().value(IFACEID);
         if (ifaceId == null) {
             log.error("The ifaceId of Host is null");
-            return null;
+            return;
         }
 
         VirtualPortId virtualPortId = VirtualPortId.portId(ifaceId);
         VirtualPort virtualPort = virtualPortService.getPort(virtualPortId);
-
         if (virtualPort == null) {
             log.error("Could not find virutal port of the host {}", host.toString());
-            return null;
+            return;
         }
 
         FixedIp fixedIp = null;
@@ -463,27 +478,50 @@ public class DhcpServerServerManager implements DhcpServerService {
                 fixedIp = floating_ip;
             }
         }
+        if (fixedIp == null) {
+            log.error("fixedIp should not be null");
+            return;
+        }
         hostStore.put(host,fixedIp);
-        return fixedIp;
+    }
+
+    private SegmentationId getSegmentationId(Host host) {
+        String ifaceId = host.annotations().value(IFACEID);
+        if (ifaceId == null) {
+            log.error("The ifaceId of Host is null");
+            return null;
+        }
+
+        VirtualPortId virtualPortId = VirtualPortId.portId(ifaceId);
+        VirtualPort virtualPort = virtualPortService.getPort(virtualPortId);
+        if (virtualPort == null) {
+            log.error("Could not find virutal port of the host {}", host.toString());
+            return null;
+        }
+
+        // Add virtual port information
+        TenantNetwork tenantNetwork = tenantNetworkService.getNetwork(virtualPort.networkId());
+        SegmentationId segmentationId = tenantNetwork.segmentationId();
+        return segmentationId;
     }
 
 
     private void processHost(Host host, Objective.Operation operation) {
-        IpAddress dstIpAddress = Ip4Address.valueOf("255.255.255.255");
-        IpAddress srcIpAddress = Ip4Address.valueOf("0.0.0.0");
-        MacAddress dstMacAddress = valueOf("ff:ff:ff:ff:ff:ff");
-        MacAddress srcMacAddress = host.mac();
-
-        SubnetId subnet_id = getIp(host).subnetId();
-        Subnet subnet = subnetService.getSubnet(subnet_id);
-
-        SegmentationId l3vni = vtnRscService.getL3vni(subnet.tenantId());
-
+        IpAddress dstIpAddress = IP_BROADCAST;
+        IpAddress srcIpAddress = DEFAULT_IP;
+        MacAddress dstMacAddress = MAC_BROADCAST;
+        configIp(host);
+        SegmentationId segmentationId = getSegmentationId(host);
+        if(segmentationId == null) {
+            log.error("SegmentaionId should not be null");
+            return;
+        }
         Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
                 .filter(e -> e.getState().contains(OpenstackNode.State.BRIDGE_CREATED))
                 .forEach(e -> {
                     DeviceId deviceId = e.getBridgeId(Bridge.BridgeType.INTEGRATION);
-                    installer.programDhcp(deviceId,  dstIpAddress, srcIpAddress, dstMacAddress, operation);
+                    installer.programDhcp(deviceId, dstIpAddress, segmentationId,
+                            srcIpAddress, dstMacAddress, operation);
                 });
     }
 

@@ -10,10 +10,12 @@ import org.onosproject.net.flow.DefaultTrafficSelector;
 import org.onosproject.net.flow.DefaultTrafficTreatment;
 import org.onosproject.net.flow.TrafficSelector;
 import org.onosproject.net.flow.TrafficTreatment;
+import org.onosproject.net.flow.criteria.Criteria;
 import org.onosproject.net.flowobjective.DefaultForwardingObjective;
 import org.onosproject.net.flowobjective.FlowObjectiveService;
 import org.onosproject.net.flowobjective.ForwardingObjective;
 import org.onosproject.net.flowobjective.Objective;
+import org.onosproject.vtnrsc.SegmentationId;
 import org.slf4j.Logger;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -53,7 +55,7 @@ public class DhcpRuleInstaller {
         return new DhcpRuleInstaller(appId);
     }
 
-    public void programDhcp(DeviceId deviceId, IpAddress dstIpAddress,
+    public void programDhcp(DeviceId deviceId, IpAddress dstIpAddress, SegmentationId segmentationId,
                             IpAddress srcIpAddress, MacAddress dstMac, Objective.Operation type){
         log.info("Program DHCP rules");
         TrafficSelector selector = DefaultTrafficSelector.builder()
@@ -62,6 +64,8 @@ public class DhcpRuleInstaller {
                 .matchIPSrc(IpPrefix.valueOf(srcIpAddress, PREFIX_LENGTH))
                 .matchIPDst(IpPrefix.valueOf(dstIpAddress, PREFIX_LENGTH))
                 .matchIPProtocol(IPv4.PROTOCOL_UDP)
+                .add(Criteria.matchTunnelId(Long
+                        .parseLong(segmentationId.toString())))
                 .build();
 
         TrafficTreatment treatment = DefaultTrafficTreatment.builder().punt()
