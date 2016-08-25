@@ -49,8 +49,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 @Component(immediate = true)
 @Service
-public class DhcpServerServerManager implements DhcpServerService {
-    private final Logger log = LoggerFactory.getLogger(DhcpServerServerManager.class);
+public class DhcpServerManager implements DhcpServerService {
+    private final Logger log = LoggerFactory.getLogger(DhcpServerManager.class);
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected PacketService packetService;
@@ -92,15 +92,15 @@ public class DhcpServerServerManager implements DhcpServerService {
             .newFixedThreadPool(1, groupedThreads("onos/dhcpmanager", "event-handler"));
 
     private static final String ALLOCATIONPOOL_IN_HOST = "allocationpool-in-host";
-    private static Ip4Address CONTROLLER_IP = Ip4Address.valueOf("169.254.169.254");
+    private static Ip4Address CONTROLLER_IP = Ip4Address.valueOf("192.168.10.5");
     private static MacAddress CONTROLLER_MAC = valueOf("68:05:ca:3c:28:a0");
     private static int leaseTime = 600;
     private static int renewalTime = 300;
     private static int rebindingTime = 360;
     private static byte packetTTL = (byte) 127;
     private static Ip4Address subnetMask = Ip4Address.valueOf("255.255.255.0");
-    private static Ip4Address srcAddress = Ip4Address.valueOf("169.254.169.254");
-    private static Ip4Address domainServer = Ip4Address.valueOf("169.254.169.254");
+    private static Ip4Address srcAddress = Ip4Address.valueOf("192.168.10.5");
+    private static Ip4Address domainServer = Ip4Address.valueOf("192.168.10.5");
 
     private static final Ip4Address IP_BROADCAST = Ip4Address.valueOf("255.255.255.255");
     private static final Ip4Address DEFAULT_IP = Ip4Address.valueOf("0.0.0.0");
@@ -356,7 +356,7 @@ public class DhcpServerServerManager implements DhcpServerService {
             boolean flagIfRequestedIP = false;
             boolean flagIfServerIP = false;
             Ip4Address requestedIP = Ip4Address.valueOf("0.0.0.0");
-            Ip4Address serverIP = Ip4Address.valueOf("169.254.169.254");
+            Ip4Address serverIP = Ip4Address.valueOf("192.168.10.5");
             Ip4Address gatewayIP = null;
 
             DHCPPacketType incomingPacketType = DHCPPacketType.getType(0);
