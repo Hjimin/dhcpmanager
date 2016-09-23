@@ -457,7 +457,22 @@ public class DhcpServerManager implements DhcpServerService {
 
 
     private void configIp(Host host){
-        String ifaceId = host.annotations().value(IFACEID);
+        String ifaceId = null;
+        for (int i = 0; i < 5; i++) {
+            ifaceId = host.annotations().value(IFACEID);
+            if (ifaceId == null) {
+                try {
+                  // Need to wait for synchronising
+                          Thread.sleep(500);
+                } catch (InterruptedException exeption) {
+                  log.warn("Interrupted while waiting to get ifaceId");
+                  //Thread.currentThread().interrupt();
+                }
+            } else  {
+                break;
+            }
+        }
+
         if (ifaceId == null) {
             log.error("The ifaceId of Host is null");
             return;
