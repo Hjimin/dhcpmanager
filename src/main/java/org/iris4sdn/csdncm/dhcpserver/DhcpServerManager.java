@@ -5,6 +5,9 @@ import org.apache.felix.scr.annotations.*;
 import org.iris4sdn.csdncm.vnetmanager.Bridge;
 import org.iris4sdn.csdncm.vnetmanager.NodeManagerService;
 import org.iris4sdn.csdncm.vnetmanager.OpenstackNode;
+import org.iris4sdn.csdncm.vnetmanager.instance.InstanceEvent;
+import org.iris4sdn.csdncm.vnetmanager.instance.InstanceListener;
+import org.iris4sdn.csdncm.vnetmanager.instance.InstanceManagerService;
 import org.onlab.packet.*;
 import org.onlab.util.KryoNamespace;
 import org.onosproject.core.ApplicationId;
@@ -16,8 +19,6 @@ import org.onosproject.net.HostId;
 import org.onosproject.net.flow.DefaultTrafficTreatment;
 import org.onosproject.net.flow.TrafficTreatment;
 import org.onosproject.net.flowobjective.Objective;
-import org.onosproject.net.host.HostEvent;
-import org.onosproject.net.host.HostListener;
 import org.onosproject.net.host.HostService;
 import org.onosproject.net.packet.DefaultOutboundPacket;
 import org.onosproject.net.packet.PacketContext;
@@ -42,10 +43,9 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.onlab.packet.MacAddress.valueOf;
 import static org.onlab.util.Tools.groupedThreads;
-
-import static com.google.common.base.Preconditions.checkNotNull;
 
 @Component(immediate = true)
 @Service
@@ -68,7 +68,7 @@ public class DhcpServerManager implements DhcpServerService {
     protected SubnetService subnetService;
 
     private DhcpPacketProcessor processor = new DhcpPacketProcessor();
-    private HostListener hostListener = new InnerHostListener();
+    private InstanceListener hostListener = new InnerHostListener();
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected VirtualPortService virtualPortService;
@@ -85,6 +85,8 @@ public class DhcpServerManager implements DhcpServerService {
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected TenantNetworkService tenantNetworkService;
 
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected InstanceManagerService instanceManagerService;
 
     private EventuallyConsistentMap<Host, FixedIp> hostStore;
 
@@ -130,14 +132,15 @@ public class DhcpServerManager implements DhcpServerService {
 
         installer = DhcpRuleInstaller.ruleInstaller(appId);
         packetService.addProcessor(processor, PacketProcessor.director(0));
-        hostService.addListener(hostListener);
+        instanceManagerService.addListener(hostListener);
+
         log.info("Started");
     }
 
     @Deactivate
     protected void deactivate() {
         packetService.removeProcessor(processor);
-        hostService.removeListener(hostListener);
+        instanceManagerService.removeListener(hostListener);
         eventExecutor.shutdown();
         log.info("Stopped");
     }
@@ -457,20 +460,10 @@ public class DhcpServerManager implements DhcpServerService {
 
 
     private void configIp(Host host){
-        String ifaceId = null;
-        for (int i = 0; i < 5; i++) {
-            ifaceId = host.annotations().value(IFACEID);
-            if (ifaceId == null) {
-                try {
-                  // Need to wait for synchronising
-                          Thread.sleep(500);
-                } catch (InterruptedException exeption) {
-                  log.warn("Interrupted while waiting to get ifaceId");
-                  //Thread.currentThread().interrupt();
-                }
-            } else  {
-                break;
-            }
+        String ifaceId = instanceManagerService.getHostIfaceId(host.id());
+
+        if (ifaceId == null) {
+            ifaceId = host.annotations().value("ifaceid");
         }
 
         if (ifaceId == null) {
@@ -521,7 +514,8 @@ public class DhcpServerManager implements DhcpServerService {
     }
 
 
-    private void processHost(Host host, Objective.Operation operation) {
+    private void processHost(HostId hostId, Objective.Operation operation) {
+        Host host = hostService.getHost(hostId);
         IpAddress dstIpAddress = IP_BROADCAST;
         IpAddress srcIpAddress = DEFAULT_IP;
         MacAddress dstMacAddress = MAC_BROADCAST;
@@ -540,18 +534,19 @@ public class DhcpServerManager implements DhcpServerService {
                 });
     }
 
-    private class InnerHostListener implements HostListener {
+    private class InnerHostListener implements InstanceListener {
         @Override
-        public void event(HostEvent event) {
-            Host host = event.subject();
-            if (HostEvent.Type.HOST_ADDED == event.type()) {
-                eventExecutor.submit(() -> processHost(host, Objective.Operation.ADD));
-            } else if (HostEvent.Type.HOST_REMOVED == event.type()) {
-                eventExecutor.submit(() -> processHost(host, Objective.Operation.REMOVE));
-            } else if (HostEvent.Type.HOST_UPDATED == event.type()) {
-                eventExecutor.submit(() -> processHost(host, Objective.Operation.REMOVE));
-                eventExecutor.submit(() -> processHost(host, Objective.Operation.ADD));
+        public void event(InstanceEvent event) {
+            HostId hostId = event.subject();
+            if (InstanceEvent.Type.INSTANCE_PUT == event.type()) {
+                eventExecutor.submit(() -> processHost(hostId, Objective.Operation.ADD));
+            } else if (InstanceEvent.Type.INSTANCE_REMOVE == event.type()) {
+                eventExecutor.submit(() -> processHost(hostId, Objective.Operation.REMOVE));
             }
+//            } else if (HostEvent.Type.HOST_UPDATED == event.type()) {
+//                eventExecutor.submit(() -> processHost(host, Objective.Operation.REMOVE));
+//                eventExecutor.submit(() -> processHost(host, Objective.Operation.ADD));
+//            }
         }
     }
 }
